@@ -1,18 +1,41 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-async function main(): Promise<void> {
-  console.log('Seeding database...');
+const dataPromises = async (): Promise<any> => {
+  return [
+    await prisma.role.createMany({
+      data: [
+        { name: 'Admin' },
+        { name: 'Regular' }
+      ]
+    }),
+    await prisma.user.create({
+      data: {
+        name: 'Admin',
+        email: 'admin@user.com',
+        username: 'root',
+        passwordHash: '123',
+        role: {
+          connect: {
+            id: 1
+          }
+        }
+      }
+    }),
+  ]
+}
 
-  await prisma.role.createMany({
-    data: [
-      { name: 'Admin' },
-      { name: 'Regular' }
-    ]
-  })
-  .catch(error => console.error(error))
-  .finally(async (): Promise<void> => await prisma.$disconnect())
+async function main(): Promise<void> {
+  console.log('Seeding database ...');
+  
+  try {
+    await Promise.all([dataPromises()])
+  } catch (error) {
+    console.error(error)
+  } finally {
+    await prisma.$disconnect()
+  }
 }
 
 main()
