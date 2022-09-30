@@ -1,8 +1,9 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import * as argon2 from "argon2";
 
 const prisma = new PrismaClient();
 
-const dataPromises = async (): Promise<any> => {
+const dataPromises = async (): Promise<any[]> => {
   return [
     await prisma.role.createMany({
       data: [
@@ -15,14 +16,14 @@ const dataPromises = async (): Promise<any> => {
         name: 'Admin',
         email: 'admin@user.com',
         username: 'root',
-        passwordHash: '123',
+        passwordHash: await argon2.hash('123'),
         role: {
           connect: {
             id: 1
           }
         }
       }
-    }),
+    })
   ]
 }
 
