@@ -23,6 +23,14 @@ const dataPromises = async (): Promise<any[]> => {
           }
         }
       }
+    }),
+    await prisma.category.createMany({
+      data: [
+        { name: 'Electronics' },
+        { name: 'Furniture' },
+        { name: 'Vehicles' },
+        { name: 'Clothing' }
+      ]
     })
   ]
 }
