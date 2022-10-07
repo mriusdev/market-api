@@ -3,12 +3,13 @@ import { Request } from "express";
 import { AuthService } from "./auth.service";
 import { UserRegisterDTO } from "./dto";
 import { UserLoginDTO } from "./dto";
-import { JwtAuthGuard, JwtAuthRefreshGuard } from "./guard";
+import { JwtAuthAccessGuard, JwtAuthRefreshGuard } from "./guard";
 import { IJwtTokens } from "./interfaces";
 
 @Controller('auth')
 export class AuthController{
   constructor(private authService: AuthService) {}
+  
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   register(@Body() dto: UserRegisterDTO): Promise<IJwtTokens> {
@@ -29,7 +30,7 @@ export class AuthController{
     return this.authService.login(dto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthAccessGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   logout(@Req() req: Request) {

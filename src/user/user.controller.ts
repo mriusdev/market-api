@@ -1,10 +1,12 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
-import { JwtAuthGuard } from '../auth/guard';
+import { JwtAuthAccessGuard } from '../auth/guard';
 
 @Controller('users')
 export class UserController {
-  @UseGuards(JwtAuthGuard)
+  
+  @UseGuards(JwtAuthAccessGuard)
+  @HttpCode(HttpStatus.OK)
   @Get('me')
   getMe(@Req() req: Request) {
     return req.user;
