@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthAccessGuard } from '../auth/guard';
+import { IGenericSuccessResponse } from '../common/interfaces';
 import { ListingCreateDTO } from './dto';
 import { ListingService } from './listing.service';
 
@@ -11,20 +12,22 @@ export class ListingController {
   @UseGuards(JwtAuthAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @Post()
-  createListing(@Body() dto: ListingCreateDTO, @Req() req: Request) {
+  createListing(@Body() dto: ListingCreateDTO, @Req() req: Request): Promise<IGenericSuccessResponse> {
     return this.listingService.createListing(dto, req.user['id']);
   }
 
   @HttpCode(HttpStatus.OK)
   @Get()
-  getListings() {
-
+  getListings(): Promise<IGenericSuccessResponse> {
+    return this.listingService.getListings();
   }
 
   @HttpCode(HttpStatus.OK)
   @Get(':id')
-  getListing() {
-
+  getListing(@Param('id') id: string): Promise<IGenericSuccessResponse> {
+    // TODO: rework param transformation from string to int
+    const idAsInt = Number.parseInt(id);
+    return this.listingService.getListing(idAsInt);
   }
 
   @UseGuards(JwtAuthAccessGuard)
