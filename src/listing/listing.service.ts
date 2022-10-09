@@ -1,10 +1,10 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { NotFoundError } from '@prisma/client/runtime';
 import { GenericException } from '../common/helpers/exceptions';
 import { GenericSuccessResponse } from '../common/helpers/responses';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
-import { ListingCreateDTO } from './dto';
+import { ListingCreateDTO, ListingUpdateDTO } from './dto';
 
 @Injectable()
 export class ListingService {
@@ -87,7 +87,70 @@ export class ListingService {
       if (error instanceof NotFoundError) {
         throw new GenericException('Listing not found')
       }
-      throw new GenericException(error)
+      throw new GenericException()
+    }
+  }
+
+  async updateListing(listingId: number, userId: number, dto: ListingUpdateDTO): Promise<IGenericSuccessResponse>
+  {
+    try {
+      const listing = await this.prisma.listing.findFirst({
+        where: {
+          id: listingId,
+          userId
+        }
+      })
+
+      if (!listing) {
+        throw new UnauthorizedException()
+      }
+      
+      const updatedListing = await this.prisma.listing.update({
+        data: {
+          title: dto.title,
+          description: dto.description,
+          categoryId: dto.categoryId
+        },
+        where: {
+          id: listingId,
+        }
+      })
+
+      return GenericSuccessResponse(undefined, 'Listing updated', updatedListing)
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error
+      }
+      throw new GenericException()
+    }
+  }
+
+  async deleteListing(listingId: number, userId: number): Promise<IGenericSuccessResponse>
+  {
+    try {
+      const listing = await this.prisma.listing.findFirst({
+        where: {
+          id: listingId,
+          userId
+        }
+      })
+
+      if (!listing) {
+        throw new UnauthorizedException()
+      }
+
+      await this.prisma.listing.delete({
+        where: {
+          id: listingId,
+        }
+      })
+
+      return GenericSuccessResponse(undefined, 'Listing deleted')
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error
+      }
+      throw new GenericException()
     }
   }
 }

@@ -8,6 +8,7 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { IJwtTokens } from "./interfaces";
 import { Request } from "express";
+import { GenericException } from "../common/helpers/exceptions";
 
 @Injectable()
 export class AuthService {
@@ -38,32 +39,40 @@ export class AuthService {
           throw new ForbiddenException('Make sure the email and username fields are unique')
         }
       }
-      throw error;
+      throw new GenericException()
     }
   }
 
   async login(dto: UserLoginDTO): Promise<IJwtTokens> {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        email: dto.email
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: {
+          email: dto.email
+        }
+      })
+      if (!user) {
+        throw new UnauthorizedException('Incorrect credentials')
       }
-    })
-
-    if (!user) {
-      throw new UnauthorizedException('Could not identify')
+  
+      const verifyHash = await argon2.verify(user.passwordHash, dto.password);
+  
+      if (!verifyHash) {
+        throw new UnauthorizedException('Incorrect credentials')
+      }
+  
+      // const tokens = await this.signTokens(user.id, user.email);
+  
+      // await this.updateRefreshToken(user.id, tokens.refresh_token);
+  
+      return this.signTokens(user.id, user.email);
+      
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error
+      }
+      throw new GenericException()
     }
 
-    const verifyHash = await argon2.verify(user.passwordHash, dto.password);
-
-    if (!verifyHash) {
-      throw new UnauthorizedException('Incorrect credentials')
-    }
-
-    // const tokens = await this.signTokens(user.id, user.email);
-
-    // await this.updateRefreshToken(user.id, tokens.refresh_token);
-
-    return this.signTokens(user.id, user.email);
   }
 
   async updateRefreshToken(userId: number, refreshToken: string): Promise<void> {
