@@ -30,6 +30,7 @@ model User {
 model Listing {
   id          Int      @id @default(autoincrement())
   title       String
+  price       Decimal
   description String?
   userId      Int
   categoryId  Int
@@ -46,6 +47,7 @@ model Category {
   id          Int      @id @default(autoincrement())
   name        String   @unique
   description String?
+  iconClass   String?  @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

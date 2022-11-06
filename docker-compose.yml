@@ -8,7 +8,12 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: nest
+    volumes:
+      - dbdata:/var/lib/postgresql/data
     networks:
       - devnetwork
+
+volumes:
+  dbdata:
 networks:
   devnetwork:

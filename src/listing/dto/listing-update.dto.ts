@@ -1,5 +1,5 @@
-import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class ListingUpdateDTO {
   @IsNotEmpty()
@@ -11,6 +11,12 @@ export class ListingUpdateDTO {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2})
+  price?: number;
 
   @Transform(({ value }) => value && parseInt(value))
   @IsNotEmpty()

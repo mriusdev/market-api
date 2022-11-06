@@ -15,6 +15,7 @@ export class ListingService {
       await this.prisma.listing.create({
         data: {
           title: dto.title,
+          price: dto.price,
           description: dto.description,
           categoryId: dto.category,
           userId: userId
@@ -34,6 +35,7 @@ export class ListingService {
       const listings = await this.prisma.listing.findMany({
         select: {
           id: true,
+          price: true,
           title: true,
           description: true,
           createdAt: true,
@@ -44,8 +46,10 @@ export class ListingService {
           },
           category: {
             select: {
+              id: true,
               name: true,
-              description: true
+              description: true,
+              iconClass: true
             }
           }
         }
@@ -66,6 +70,7 @@ export class ListingService {
         },
         select: {
           id: true,
+          price: true,
           title: true,
           description: true,
           createdAt: true,
@@ -108,6 +113,7 @@ export class ListingService {
       const updatedListing = await this.prisma.listing.update({
         data: {
           title: dto.title,
+          price: dto.price,
           description: dto.description,
           categoryId: dto.categoryId
         },
