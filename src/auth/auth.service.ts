@@ -95,8 +95,6 @@ export class AuthService {
       }
     })
     res.clearCookie('rt', { httpOnly: true, domain: this.config.get('FRONTEND_DOMAIN')})
-    console.log('trying to clear cookies');
-    
   }
 
   async refreshToken(req: Request, res: Response) {

@@ -22,7 +22,6 @@ export class AuthController{
     return this.authService.login(dto, res);
   }
 
-  // TODO ADD REMOVE HTTP COOKIE
   @UseGuards(JwtAuthAccessGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
