@@ -7,13 +7,13 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { IJwtTokens } from "./interfaces";
-import { Request } from "express";
+import { Request, Response } from "express";
 import { GenericException } from "../common/helpers/exceptions";
 
 @Injectable()
 export class AuthService {
   constructor(private prisma: PrismaService, private jwt: JwtService, private config: ConfigService) {}
-  async register(dto: UserRegisterDTO): Promise<IJwtTokens> {
+  async register(dto: UserRegisterDTO, res: Response): Promise<IJwtTokens> {
     const hash = await argon2.hash(dto.password)
     try {
       const user = await this.prisma.user.create({
@@ -31,7 +31,7 @@ export class AuthService {
         }
       })
   
-      return this.signTokens(user.id, user.email);
+      return this.signTokens(user.id, user.email, res);
       
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
@@ -43,7 +43,7 @@ export class AuthService {
     }
   }
 
-  async login(dto: UserLoginDTO): Promise<IJwtTokens> {
+  async login(dto: UserLoginDTO, res: Response): Promise<IJwtTokens> {
     try {
       const user = await this.prisma.user.findUnique({
         where: {
@@ -60,11 +60,7 @@ export class AuthService {
         throw new UnauthorizedException('Incorrect credentials')
       }
   
-      // const tokens = await this.signTokens(user.id, user.email);
-  
-      // await this.updateRefreshToken(user.id, tokens.refresh_token);
-  
-      return this.signTokens(user.id, user.email);
+      return this.signTokens(user.id, user.email, res);
       
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -86,7 +82,7 @@ export class AuthService {
     });
   }
 
-  async logout(userId: number) {
+  async logout(userId: number, res: Response) {
     await this.prisma.user.updateMany({
       where: {
         id: userId,
@@ -98,9 +94,12 @@ export class AuthService {
         refreshTokenHash: null
       }
     })
+    res.clearCookie('rt', { httpOnly: true, domain: this.config.get('FRONTEND_DOMAIN')})
+    console.log('trying to clear cookies');
+    
   }
 
-  async refreshToken(req: Request) {
+  async refreshToken(req: Request, res: Response) {
     const {refreshTokenHash} = await this.prisma.user.findUnique({
       where: {
         id: req.user['sub']
@@ -109,18 +108,18 @@ export class AuthService {
         refreshTokenHash: true
       }
     })
-
+    
     const verifyRefreshHash = await argon2.verify(refreshTokenHash, req.user['refreshToken'])
 
     if (!verifyRefreshHash) {
-      this.logout(req.user['sub']);
+      this.logout(req.user['sub'], res);
       throw new UnauthorizedException('Could not verify user details')
     }
     
-    return this.signTokens(req.user['sub'], req.user['email']);
+    return this.signTokens(req.user['sub'], req.user['email'], res);
   }
 
-  async signTokens(userId: number, email: string): Promise<IJwtTokens> {
+  async signTokens(userId: number, email: string, res: Response): Promise<IJwtTokens> {
     const payload = {
       sub: userId,
       email
@@ -132,16 +131,16 @@ export class AuthService {
         secret: this.config.get('JWT_SECRET_KEY')
       }),
       this.jwt.signAsync(payload, {
-        expiresIn: '30m',
+        expiresIn: '10m',
         secret: this.config.get('JWT_REFRESH_SECRET_KEY')
       }),
     ])
 
     await this.updateRefreshToken(userId, refresh_token);
+    res.cookie('rt', refresh_token, { httpOnly: true, domain: this.config.get('FRONTEND_DOMAIN')})
 
     return {
-      access_token,
-      refresh_token
+      access_token
     }
   }
 }

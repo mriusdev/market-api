@@ -1,5 +1,5 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from "@nestjs/common";
-import { Request } from "express";
+import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { UserRegisterDTO } from "./dto";
 import { UserLoginDTO } from "./dto";
@@ -12,36 +12,29 @@ export class AuthController{
   
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  register(@Body() dto: UserRegisterDTO): Promise<IJwtTokens> {
-    console.log({
-      dto
-    });
-
-    return this.authService.register(dto);
+  register(@Body() dto: UserRegisterDTO, @Res({passthrough: true}) res: Response): Promise<IJwtTokens> {
+    return this.authService.register(dto, res);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() dto: UserLoginDTO): Promise<IJwtTokens> {
-    console.log({
-      dto
-    });
-    
-    return this.authService.login(dto);
+  login(@Body() dto: UserLoginDTO, @Res({passthrough: true}) res: Response): Promise<IJwtTokens> {
+    return this.authService.login(dto, res);
   }
 
+  // TODO ADD REMOVE HTTP COOKIE
   @UseGuards(JwtAuthAccessGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  logout(@Req() req: Request) {
-    return this.authService.logout(req.user['id']);
+  logout(@Req() req: Request, @Res({passthrough: true}) res: Response) {
+    return this.authService.logout(req.user['id'], res);
   }
 
   @UseGuards(JwtAuthRefreshGuard)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  refreshToken(@Req() req: Request) {
-    return this.authService.refreshToken(req);
+  refreshToken(@Req() req: Request, @Res({passthrough: true}) res: Response) {
+    return this.authService.refreshToken(req, res);
   }
 
 }
