@@ -94,8 +94,14 @@ export class AuthService {
         refreshTokenHash: null
       }
     })
-    res.clearCookie('rt', { httpOnly: true, domain: this.config.get('FRONTEND_DOMAIN')})
+    res.clearCookie('rt', { httpOnly: true, sameSite: 'none', secure: true })
   }
+
+  // checkRt(req: Request, res: Response) {
+  //   return {
+  //     refresh_token_from_cookie: req?.cookies?.rt
+  //   }
+  // }
 
   async refreshToken(req: Request, res: Response) {
     const {refreshTokenHash} = await this.prisma.user.findUnique({
@@ -125,17 +131,17 @@ export class AuthService {
 
     const [access_token, refresh_token] = await Promise.all([
       this.jwt.signAsync(payload, {
-        expiresIn: '5m',
+        expiresIn: '15m',
         secret: this.config.get('JWT_SECRET_KEY')
       }),
       this.jwt.signAsync(payload, {
-        expiresIn: '10m',
+        expiresIn: '30m',
         secret: this.config.get('JWT_REFRESH_SECRET_KEY')
       }),
     ])
 
     await this.updateRefreshToken(userId, refresh_token);
-    res.cookie('rt', refresh_token, { httpOnly: true, domain: this.config.get('FRONTEND_DOMAIN')})
+    res.cookie('rt', refresh_token, { httpOnly: true, sameSite: 'none', secure: true })
 
     return {
       access_token

@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UseGuards } from "@nestjs/common";
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { UserRegisterDTO } from "./dto";
@@ -35,5 +35,12 @@ export class AuthController{
   refreshToken(@Req() req: Request, @Res({passthrough: true}) res: Response) {
     return this.authService.refreshToken(req, res);
   }
+
+  // @UseGuards(JwtAuthRefreshGuard)
+  // @Get('check-rt')
+  // @HttpCode(HttpStatus.OK)
+  // checkRt(@Req() req: Request, @Res({passthrough: true}) res: Response) {
+  //   return this.authService.checkRt(req, res)
+  // }
 
 }
