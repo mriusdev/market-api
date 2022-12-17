@@ -4,7 +4,7 @@ import { Request } from 'express';
 import { JwtAuthAccessGuard } from '../auth/guard';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { ValidatePayloadExistsPipe } from '../common/pipes';
-import { ListingCreateDTO, ListingUpdateDTO } from './dto';
+import { ListingCreateDTO, ListingImagesDeleteDTO, ListingUpdateDTO } from './dto';
 import { ListingService } from './listing.service';
 
 @Controller('listings')
@@ -51,7 +51,8 @@ export class ListingController {
   @UseGuards(JwtAuthAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @Delete(':id/images')
-  removeListingImage() {
+  deleteListingImages(@Body() dto: ListingImagesDeleteDTO, @Param('id', ParseIntPipe) id: number) {
+    return this.listingService.deleteListingImages(id, dto)
   }
 
   @UseGuards(JwtAuthAccessGuard)

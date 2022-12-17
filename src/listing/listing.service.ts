@@ -5,14 +5,23 @@ import { GenericException } from '../common/helpers/exceptions';
 import { GenericSuccessResponse } from '../common/helpers/responses';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
-import { ListingCreateDTO, ListingUpdateDTO } from './dto';
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { ListingCreateDTO, ListingImagesDeleteDTO, ListingUpdateDTO } from './dto';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class ListingService {
-  constructor(private prisma: PrismaService, private config: ConfigService, private httpService: HttpService) {}
+  s3Client: S3Client
+  constructor(private prisma: PrismaService, private config: ConfigService, private httpService: HttpService) {
+    this.s3Client = new S3Client({
+      region: this.config.get('AWS_REGION'),
+      credentials: {
+        accessKeyId: this.config.get('AWS_ACCESS_KEY'),
+        secretAccessKey: this.config.get('AWS_SECRET_KEY')
+      }
+    })
+  }
 
   async createListing(dto: ListingCreateDTO, userId: number): Promise<IGenericSuccessResponse> {
     try {
@@ -154,13 +163,13 @@ export class ListingService {
     // `listings/${id}/${file.originalname}`
     // to listing_images
     console.log('file info', files);
-    const s3Client = new S3Client({
-      region: this.config.get('AWS_REGION'),
-      credentials: {
-        accessKeyId: this.config.get('AWS_ACCESS_KEY'),
-        secretAccessKey: this.config.get('AWS_SECRET_KEY')
-      }
-    })
+    // const s3Client = new S3Client({
+    //   region: this.config.get('AWS_REGION'),
+    //   credentials: {
+    //     accessKeyId: this.config.get('AWS_ACCESS_KEY'),
+    //     secretAccessKey: this.config.get('AWS_SECRET_KEY')
+    //   }
+    // })
     const arrayOfFilesToBeUploaded = [];
     const fileLocations = [];
     // throw Error('lel')
@@ -173,7 +182,7 @@ export class ListingService {
         ContentType: file.mimetype
       }
       const command = new PutObjectCommand(params)
-      arrayOfFilesToBeUploaded.push(s3Client.send(command))
+      arrayOfFilesToBeUploaded.push(this.s3Client.send(command))
       fileLocations.push(fullFileLocation)
     }
 
@@ -195,37 +204,42 @@ export class ListingService {
         error
       }
     }
-    return;
+  }
 
-    // console.log('req info',req);
-    let file;
-    
-    // const s3Client = new S3Client({
-    //   region: this.config.get('AWS_REGION'),
-    //   credentials: {
-    //     accessKeyId: null,
-    //     secretAccessKey: null
-    //   }
-    // })
+  async deleteListingImages(id: number, dto: ListingImagesDeleteDTO)
+  {
+    // TODO:
+    // - check if listing by id is found  IN PROGRESS
+    // - if s3 url contains listings url OK
 
-    const params = {
-      Bucket: this.config.get('AWS_BUCKET_NAME'),
-      Key: `listings/${id}/${file.originalname}`,
-      Body: file.buffer,
-      ContentType: file.mimetype
-    }
-    const command = new PutObjectCommand(params)
-    try {
-      await s3Client.send(command)
-      return GenericSuccessResponse(undefined, 'Image upload success', {})
-      
-    } catch (error) {
-      return {
-        msg: 'failed',
-        error
+    // if okay:
+    // - fire s3 command to delete resource by file URL OK
+    // - delete local database record(s) using provided id in object KEY OK
+    for (const key in dto.imageUrls) {
+      const splitUrl = dto.imageUrls[key].split("/")
+      if (+splitUrl[1] !== id) {
+        throw new UnauthorizedException()
+      }
+
+      const params = {
+        Bucket: this.config.get('AWS_BUCKET_NAME'),
+        Key: dto.imageUrls[key],
+      }
+
+      const command = new DeleteObjectCommand(params)
+      try {
+        await this.s3Client.send(command)
+        await this.prisma.listingImages.delete({
+          where: {
+            id: +key
+          }
+        })
+        
+      } catch (error) {
+        throw new GenericException(error)
       }
     }
-
+    return GenericSuccessResponse(undefined, 'Image(s) successfully removed', {})
   }
 
   async deleteListing(listingId: number, userId: number): Promise<IGenericSuccessResponse>
