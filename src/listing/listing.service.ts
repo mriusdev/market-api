@@ -55,6 +55,13 @@ export class ListingService {
               description: true,
               iconClass: true
             }
+          },
+          listingImages: {
+            take: 1,
+            select: {
+              id: true,
+              imageLocation: true
+            },
           }
         }
       })
@@ -88,6 +95,12 @@ export class ListingService {
               name: true,
               description: true
             }
+          },
+          listingImages: {
+            select: {
+              id: true,
+              imageLocation: true
+            },
           }
         }
       })
@@ -137,6 +150,9 @@ export class ListingService {
 
   async uploadListingImages(id: number, req: Request, files: Array<Express.Multer.File>)
   {
+    // TODO: with every file upload, also upload file location
+    // `listings/${id}/${file.originalname}`
+    // to listing_images
     console.log('file info', files);
     const s3Client = new S3Client({
       region: this.config.get('AWS_REGION'),
@@ -146,21 +162,32 @@ export class ListingService {
       }
     })
     const arrayOfFilesToBeUploaded = [];
+    const fileLocations = [];
     // throw Error('lel')
     for (const file of files) {
+      const fullFileLocation = `listings/${id}/${file.originalname}`
       const params = {
         Bucket: this.config.get('AWS_BUCKET_NAME'),
-        Key: `listings/${id}/${file.originalname}`,
+        Key: fullFileLocation,
         Body: file.buffer,
         ContentType: file.mimetype
       }
       const command = new PutObjectCommand(params)
       arrayOfFilesToBeUploaded.push(s3Client.send(command))
+      fileLocations.push(fullFileLocation)
     }
 
     console.log('arrayOfFiles', arrayOfFilesToBeUploaded);
     try {
       const result = await Promise.all(arrayOfFilesToBeUploaded)
+      for (const fileLocation of fileLocations) {
+        await this.prisma.listingImages.create({
+          data: {
+            imageLocation: fileLocation,
+            listingId: id
+          }
+        })
+      }
       return GenericSuccessResponse(undefined, 'Image upload success', result)
     } catch (error) {
       return {

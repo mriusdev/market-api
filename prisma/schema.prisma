@@ -37,10 +37,23 @@ model Listing {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  author   User     @relation(fields: [userId], references: [id])
-  category Category @relation(fields: [categoryId], references: [id])
+  author        User            @relation(fields: [userId], references: [id])
+  category      Category        @relation(fields: [categoryId], references: [id])
+  listingImages ListingImages[]
 
   @@map("listings")
+}
+
+model ListingImages {
+  id            Int      @id @default(autoincrement())
+  imageLocation String
+  listingId     Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  listing Listing @relation(fields: [listingId], references: [id])
+
+  @@map("listing_images")
 }
 
 model Category {
