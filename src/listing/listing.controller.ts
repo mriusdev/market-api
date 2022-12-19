@@ -41,18 +41,15 @@ export class ListingController {
   @HttpCode(HttpStatus.CREATED)
   @Put(':id/images')
   @UseInterceptors(FilesInterceptor('files'))
-  uploadListingImages(@Req() req: Request, @Param('id', ParseIntPipe) id: number, @UploadedFiles() files: Array<Express.Multer.File>) {
-    console.log('files', files);
-    
-    return this.listingService.uploadListingImages(id, req, files);
+  uploadListingImages(@Req() req: Request, @Param('id', ParseIntPipe) id: number, @UploadedFiles() files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse> {
+    return this.listingService.uploadListingImages(id, req.user['id'], files);
   }
 
-  // TODO: add delete functionality
   @UseGuards(JwtAuthAccessGuard)
-  @HttpCode(HttpStatus.CREATED)
+  @HttpCode(HttpStatus.OK)
   @Delete(':id/images')
-  deleteListingImages(@Body() dto: ListingImagesDeleteDTO, @Param('id', ParseIntPipe) id: number) {
-    return this.listingService.deleteListingImages(id, dto)
+  deleteListingImages(@Req() req: Request, @Body() dto: ListingImagesDeleteDTO, @Param('id', ParseIntPipe) id: number) {
+    return this.listingService.deleteListingImages(id, req.user['id'], dto)
   }
 
   @UseGuards(JwtAuthAccessGuard)

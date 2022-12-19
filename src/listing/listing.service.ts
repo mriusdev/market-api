@@ -157,38 +157,37 @@ export class ListingService {
     }
   }
 
-  async uploadListingImages(id: number, req: Request, files: Array<Express.Multer.File>)
+  async uploadListingImages(id: number, userId: number, files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse>
   {
-    // TODO: with every file upload, also upload file location
-    // `listings/${id}/${file.originalname}`
-    // to listing_images
-    console.log('file info', files);
-    // const s3Client = new S3Client({
-    //   region: this.config.get('AWS_REGION'),
-    //   credentials: {
-    //     accessKeyId: this.config.get('AWS_ACCESS_KEY'),
-    //     secretAccessKey: this.config.get('AWS_SECRET_KEY')
-    //   }
-    // })
-    const arrayOfFilesToBeUploaded = [];
-    const fileLocations = [];
-    // throw Error('lel')
-    for (const file of files) {
-      const fullFileLocation = `listings/${id}/${file.originalname}`
-      const params = {
-        Bucket: this.config.get('AWS_BUCKET_NAME'),
-        Key: fullFileLocation,
-        Body: file.buffer,
-        ContentType: file.mimetype
-      }
-      const command = new PutObjectCommand(params)
-      arrayOfFilesToBeUploaded.push(this.s3Client.send(command))
-      fileLocations.push(fullFileLocation)
-    }
-
-    console.log('arrayOfFiles', arrayOfFilesToBeUploaded);
     try {
-      const result = await Promise.all(arrayOfFilesToBeUploaded)
+      const listing = await this.prisma.listing.findFirst({
+        where: {
+          id,
+          userId
+        }
+      })
+  
+      if (!listing) {
+        throw new UnauthorizedException()
+      }
+
+      const arrayOfFilesToBeUploaded = [];
+      const fileLocations = [];
+      
+      for (const file of files) {
+        const fullFileLocation = `listings/${id}/${file.originalname}`
+        const params = {
+          Bucket: this.config.get('AWS_BUCKET_NAME'),
+          Key: fullFileLocation,
+          Body: file.buffer,
+          ContentType: file.mimetype
+        }
+        const command = new PutObjectCommand(params)
+        arrayOfFilesToBeUploaded.push(this.s3Client.send(command))
+        fileLocations.push(fullFileLocation)
+      }
+
+      await Promise.all(arrayOfFilesToBeUploaded)
       for (const fileLocation of fileLocations) {
         await this.prisma.listingImages.create({
           data: {
@@ -197,49 +196,50 @@ export class ListingService {
           }
         })
       }
-      return GenericSuccessResponse(undefined, 'Image upload success', result)
+      return GenericSuccessResponse(undefined, 'Image upload success', {})
     } catch (error) {
-      return {
-        msg: 'failed',
-        error
-      }
+      throw new GenericException(error)
     }
   }
 
-  async deleteListingImages(id: number, dto: ListingImagesDeleteDTO)
+  async deleteListingImages(id: number, userId: number, dto: ListingImagesDeleteDTO): Promise<IGenericSuccessResponse>
   {
-    // TODO:
-    // - check if listing by id is found  IN PROGRESS
-    // - if s3 url contains listings url OK
-
-    // if okay:
-    // - fire s3 command to delete resource by file URL OK
-    // - delete local database record(s) using provided id in object KEY OK
-    for (const key in dto.imageUrls) {
-      const splitUrl = dto.imageUrls[key].split("/")
-      if (+splitUrl[1] !== id) {
+    try {
+      const listing = await this.prisma.listing.findFirst({
+        where: {
+          id,
+          userId
+        }
+      })
+  
+      if (!listing) {
         throw new UnauthorizedException()
       }
 
-      const params = {
-        Bucket: this.config.get('AWS_BUCKET_NAME'),
-        Key: dto.imageUrls[key],
-      }
+      for (const imageInfo of dto.imageDetails) {
 
-      const command = new DeleteObjectCommand(params)
-      try {
+        const splitUrl = imageInfo.imagePath.split("/")
+        if (+splitUrl[1] !== id) {
+          throw new UnauthorizedException()
+        }
+  
+        const params = {
+          Bucket: this.config.get('AWS_BUCKET_NAME'),
+          Key: imageInfo.imagePath,
+        }
+  
+        const command = new DeleteObjectCommand(params)
         await this.s3Client.send(command)
         await this.prisma.listingImages.delete({
           where: {
-            id: +key
+            id: +imageInfo.id
           }
         })
-        
-      } catch (error) {
-        throw new GenericException(error)
       }
+      return GenericSuccessResponse(undefined, 'Image(s) successfully removed', {})
+    } catch (error) {
+      throw new GenericException(error)
     }
-    return GenericSuccessResponse(undefined, 'Image(s) successfully removed', {})
   }
 
   async deleteListing(listingId: number, userId: number): Promise<IGenericSuccessResponse>
