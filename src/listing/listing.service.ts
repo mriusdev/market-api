@@ -5,8 +5,8 @@ import { GenericException } from '../common/helpers/exceptions';
 import { GenericSuccessResponse } from '../common/helpers/responses';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
-import { ListingCreateDTO, ListingImagesDeleteDTO, ListingUpdateDTO } from './dto';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { ListingCreateDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 
@@ -157,6 +157,8 @@ export class ListingService {
     }
   }
 
+  //TODO: rethink this methods usefulness. Logic could be used for listing creation during
+  // image upload
   async uploadListingImages(id: number, userId: number, files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse>
   {
     try {
@@ -197,6 +199,63 @@ export class ListingService {
         })
       }
       return GenericSuccessResponse(undefined, 'Image upload success', {})
+    } catch (error) {
+      throw new GenericException(error)
+    }
+  }
+
+  //TODO refactor repeating 'findIfExists' s3 code
+  async updateListingImages(id: number, userId: number, file: Express.Multer.File, dto: ListingImagesUpdateDTO)
+  {
+    try {
+      const listing = await this.prisma.listing.findFirst({
+        where: {
+          id,
+          userId
+        }
+      })
+  
+      if (!listing) {
+        throw new UnauthorizedException()
+      }
+
+      const headObjectCommandParams = {
+        Bucket: this.config.get('AWS_BUCKET_NAME'),
+        Key: dto.path,
+      }
+      const headObjectCommand = new HeadObjectCommand(headObjectCommandParams)
+      const currentImage = await this.s3Client.send(headObjectCommand)
+      if (!currentImage) {
+        throw new UnauthorizedException()
+      }
+
+      const newFullFileLocation = `listings/${id}/${file.originalname}`
+      const putObjectCommandParams = {
+        Bucket: this.config.get('AWS_BUCKET_NAME'),
+        Key: newFullFileLocation,
+        Body: file.buffer,
+        ContentType: file.mimetype
+      }
+      const putObjectCommand = new PutObjectCommand(putObjectCommandParams)
+      await this.s3Client.send(putObjectCommand)
+
+      const deleteObjectCommandParams = {
+        Bucket: this.config.get('AWS_BUCKET_NAME'),
+        Key: dto.path,
+      }
+      const deleteObjectCommand = new DeleteObjectCommand(deleteObjectCommandParams)
+      await this.s3Client.send(deleteObjectCommand)
+
+      const updatedImage = await this.prisma.listingImages.update({
+        where: {
+          id: +dto.id
+        },
+        data: {
+          imageLocation: newFullFileLocation
+        }
+      })
+      
+      return GenericSuccessResponse(undefined, 'Image upload success', updatedImage)
     } catch (error) {
       throw new GenericException(error)
     }

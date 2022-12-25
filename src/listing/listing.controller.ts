@@ -4,7 +4,7 @@ import { Request } from 'express';
 import { JwtAuthAccessGuard } from '../auth/guard';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { ValidatePayloadExistsPipe } from '../common/pipes';
-import { ListingCreateDTO, ListingImagesDeleteDTO, ListingUpdateDTO } from './dto';
+import { ListingCreateDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
 import { ListingService } from './listing.service';
 
 @Controller('listings')
@@ -43,6 +43,14 @@ export class ListingController {
   @UseInterceptors(FilesInterceptor('files'))
   uploadListingImages(@Req() req: Request, @Param('id', ParseIntPipe) id: number, @UploadedFiles() files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse> {
     return this.listingService.uploadListingImages(id, req.user['id'], files);
+  }
+
+  @UseGuards(JwtAuthAccessGuard)
+  @HttpCode(HttpStatus.OK)
+  @Patch(':id/images')
+  @UseInterceptors(FileInterceptor('file'))
+  updateListingImages(@Req() req: Request, @Param('id', ParseIntPipe) id: number, @UploadedFile() file: Express.Multer.File, @Body() dto: ListingImagesUpdateDTO) {
+    return this.listingService.updateListingImages(id, req.user['id'], file, dto);
   }
 
   @UseGuards(JwtAuthAccessGuard)
