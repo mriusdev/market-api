@@ -5,10 +5,11 @@ import { GenericException } from '../common/helpers/exceptions';
 import { GenericSuccessResponse } from '../common/helpers/responses';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
-import { ListingCreateDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
+import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
+import { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class ListingService {
@@ -23,27 +24,68 @@ export class ListingService {
     })
   }
 
-  async createListing(dto: ListingCreateDTO, userId: number): Promise<IGenericSuccessResponse> {
+  async createListing(dto: ListingCreateDTO, userId: number, files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse> {
     try {
-      await this.prisma.listing.create({
+      //first create listing
+      //upload s3 image(s)
+      //create listing image with listingId
+      const listing = await this.prisma.listing.create({
         data: {
           title: dto.title,
           price: dto.price,
           description: dto.description,
-          categoryId: dto.category,
+          categoryId: +dto.category,
           userId: userId
         }
       })
 
-      return GenericSuccessResponse(HttpStatus.CREATED, 'Listing created')
+      const arrayOfFilesToBeUploaded = [];
+      const fileLocations = [];
+      
+      for (const file of files) {
+        const fullFileLocation = `listings/${listing.id}/${file.originalname}`
+        const params = {
+          Bucket: this.config.get('AWS_BUCKET_NAME'),
+          Key: fullFileLocation,
+          Body: file.buffer,
+          ContentType: file.mimetype
+        }
+        const command = new PutObjectCommand(params)
+        arrayOfFilesToBeUploaded.push(this.s3Client.send(command))
+        fileLocations.push(fullFileLocation)
+      }
+
+      // better error handling could be done here perhaps
+      // what if one of the listings fail?
+      await Promise.all(arrayOfFilesToBeUploaded)
+
+
+      for (const fileLocation of fileLocations) {
+        await this.prisma.listingImages.create({
+          data: {
+            imageLocation: fileLocation,
+            listingId: listing.id
+          }
+        })
+      }
+
+      return GenericSuccessResponse(HttpStatus.CREATED, 'Listing created', listing)
       
     } catch (error) {
-      throw new GenericException()
+      throw new GenericException(error)
     }
   }
 
-  async getListings(): Promise<IGenericSuccessResponse>
+  async getListings(filterDTO: ListingFilterDTO | null = null): Promise<IGenericSuccessResponse>
   {
+    let filters;
+    if (filterDTO) {
+      filters = {
+        category: filterDTO.category ? {
+          id: +filterDTO.category
+        } : undefined
+      }
+    }
     try {
       const listings = await this.prisma.listing.findMany({
         select: {
@@ -72,6 +114,9 @@ export class ListingService {
               imageLocation: true
             },
           }
+        },
+        where: {
+          ...filters
         }
       })
 

@@ -1,5 +1,6 @@
 import { Transform, Type } from "class-transformer"
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator"
+import { IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString } from "class-validator"
+import { ALLOWED_CATEGORY_IDS } from "../../../config/categories";
 
 export class ListingCreateDTO {
   @IsNotEmpty()
@@ -15,7 +16,8 @@ export class ListingCreateDTO {
   @IsNumber({ maxDecimalPlaces: 2})
   price: number;
 
-  @Transform(({ value }) => value && parseInt(value))
+  @IsNumberString()
   @IsNotEmpty()
-  category: number
+  @IsIn(ALLOWED_CATEGORY_IDS)
+  category: string
 }

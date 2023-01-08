@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Put, Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { JwtAuthAccessGuard } from '../auth/guard';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { ValidatePayloadExistsPipe } from '../common/pipes';
-import { ListingCreateDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
+import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
 import { ListingService } from './listing.service';
 
 @Controller('listings')
@@ -14,13 +14,17 @@ export class ListingController {
   @UseGuards(JwtAuthAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @Post()
-  createListing(@Body() dto: ListingCreateDTO, @Req() req: Request): Promise<IGenericSuccessResponse> {
-    return this.listingService.createListing(dto, req.user['id']);
+  @UseInterceptors(FilesInterceptor('files'))
+  createListing(@Body() dto: ListingCreateDTO, @Req() req: Request, @UploadedFiles() files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse> {
+    return this.listingService.createListing(dto, req.user['id'], files);
   }
 
   @HttpCode(HttpStatus.OK)
   @Get()
-  getListings(): Promise<IGenericSuccessResponse> {
+  getListings(@Query() filterDto: ListingFilterDTO): Promise<IGenericSuccessResponse> {
+    if (Object.keys(filterDto).length) {
+      return this.listingService.getListings(filterDto)
+    }
     return this.listingService.getListings();
   }
 
