@@ -79,6 +79,8 @@ export class ListingService {
   async getListings(filterDTO: ListingFilterDTO | null = null): Promise<IGenericSuccessResponse>
   {
     let filters;
+    let page: number;
+    let perPage: number;
     if (filterDTO) {
       filters = {
         category: filterDTO.category ? {
@@ -86,8 +88,17 @@ export class ListingService {
         } : undefined
       }
     }
+    page = filterDTO.page ? --filterDTO.page : 0
+    perPage = filterDTO.perPage ? filterDTO.perPage : 2
     try {
+      let listingsCount = await this.prisma.listing.count({
+        where: {
+          ...filters
+        }
+      })
       const listings = await this.prisma.listing.findMany({
+        take: perPage,
+        skip: page,
         select: {
           id: true,
           price: true,
@@ -120,9 +131,12 @@ export class ListingService {
         }
       })
 
-      return GenericSuccessResponse(undefined, undefined, listings)
+      return GenericSuccessResponse(undefined, undefined, {
+        totalPages: --listingsCount,
+        paginatedResults: listings
+      })
     } catch (error) {
-      throw new GenericException()
+      throw new GenericException(error)
     }
   }
 
