@@ -87,9 +87,10 @@ export class ListingService {
           id: +filterDTO.category
         } : undefined
       }
+      page = filterDTO?.page ? --filterDTO.page : 0
+      perPage = filterDTO?.perPage ? filterDTO.perPage : 2
     }
-    page = filterDTO.page ? --filterDTO.page : 0
-    perPage = filterDTO.perPage ? filterDTO.perPage : 2
+    
     try {
       let listingsCount = await this.prisma.listing.count({
         where: {
