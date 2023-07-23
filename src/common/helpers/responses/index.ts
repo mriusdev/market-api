@@ -1,1 +1,1 @@
-export * from './generic-success-response'
+export * from './generic-success-response';
