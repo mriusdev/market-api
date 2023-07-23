@@ -1,20 +1,23 @@
 import { HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { NotFoundError } from '@prisma/client/runtime';
-import { Request } from 'express';
 import { GenericException } from '../common/helpers/exceptions';
 import { GenericSuccessResponse } from '../common/helpers/responses';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { PrismaClient } from '@prisma/client';
+import { IListingSearchBuilderResult, ListingSearchBuilder } from './listingSearchBuilder.service';
 
 @Injectable()
 export class ListingService {
   s3Client: S3Client
-  constructor(private prisma: PrismaService, private config: ConfigService, private httpService: HttpService) {
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+    private listingSearchBuilder: ListingSearchBuilder
+  )
+  {
     this.s3Client = new S3Client({
       region: this.config.get('AWS_REGION'),
       credentials: {
@@ -76,66 +79,15 @@ export class ListingService {
     }
   }
 
-  async getListings(filterDTO: ListingFilterDTO | null = null): Promise<IGenericSuccessResponse>
+  async getListings(filterDTO: ListingFilterDTO): Promise<IListingSearchBuilderResult>
   {
-    let filters;
-    let page: number;
-    let perPage: number;
-    if (filterDTO) {
-      filters = {
-        category: filterDTO.category ? {
-          id: +filterDTO.category
-        } : undefined
-      }
-      page = filterDTO?.page ? --filterDTO.page : 0
-      perPage = filterDTO?.perPage ? filterDTO.perPage : 2
-    }
-    
     try {
-      let listingsCount = await this.prisma.listing.count({
-        where: {
-          ...filters
-        }
-      })
-      const listings = await this.prisma.listing.findMany({
-        take: perPage,
-        skip: page,
-        select: {
-          id: true,
-          price: true,
-          title: true,
-          description: true,
-          createdAt: true,
-          author: {
-            select: {
-              username: true
-            }
-          },
-          category: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              iconClass: true
-            }
-          },
-          listingImages: {
-            take: 1,
-            select: {
-              id: true,
-              imageLocation: true
-            },
-          }
-        },
-        where: {
-          ...filters
-        }
-      })
-
-      return GenericSuccessResponse(undefined, undefined, {
-        totalPages: --listingsCount,
-        paginatedResults: listings
-      })
+      return await this.listingSearchBuilder
+        .setDTO(filterDTO)
+        .getCategory()
+        .getPage()
+        .getSearch()
+        .getPaginatedResult()
     } catch (error) {
       throw new GenericException(error)
     }
