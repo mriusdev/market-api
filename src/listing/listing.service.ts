@@ -8,6 +8,7 @@ import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImag
 import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { ConfigService } from '@nestjs/config';
 import { IListingSearchBuilderResult, ListingSearchBuilder } from './listingSearchBuilder.service';
+import { log } from 'console';
 
 @Injectable()
 export class ListingService {
@@ -15,7 +16,6 @@ export class ListingService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
-    private listingSearchBuilder: ListingSearchBuilder
   )
   {
     this.s3Client = new S3Client({
@@ -82,12 +82,27 @@ export class ListingService {
   async getListings(filterDTO: ListingFilterDTO): Promise<IListingSearchBuilderResult>
   {
     try {
-      return await this.listingSearchBuilder
+      // console.log('results', await this.listingSearchBuilder
+      // .setDTO(filterDTO)
+      // .getCategory()
+      // .getPage()
+      // .getSearch()
+      // .getPaginatedResult());
+
+      return (new ListingSearchBuilder(this.prisma))
         .setDTO(filterDTO)
         .getCategory()
         .getPage()
         .getSearch()
-        .getPaginatedResult()
+        .getPaginatedResult();
+      
+      // return await this.listingSearchBuilder
+      //   .setDTO(filterDTO)
+      //   .getCategory()
+      //   .getPage()
+      //   .getSearch()
+      //   .getPaginatedResult();
+
     } catch (error) {
       throw new GenericException(error)
     }

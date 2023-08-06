@@ -8,6 +8,6 @@ import { ListingSearchBuilder } from './listingSearchBuilder.service';
   imports: [HttpModule],
   exports: [ListingService],
   controllers: [ListingController],
-  providers: [ListingService, ListingSearchBuilder]
+  providers: [ListingService]
 })
 export class ListingModule {}
