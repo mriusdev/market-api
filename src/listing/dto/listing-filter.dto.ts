@@ -3,10 +3,11 @@ import { IsIn, IsInt, IsNotEmpty, IsNumberString, IsOptional, IsString, Min } fr
 import { ALLOWED_CATEGORY_IDS } from "../../../config/categories";
 
 export class ListingFilterDTO {
-  @IsNumberString()
+  @Type(() => Number)
+  @IsInt()
   @IsOptional()
   @IsIn(ALLOWED_CATEGORY_IDS)
-  category: string
+  category: number
 
   @Type(() => Number)
   @IsInt()

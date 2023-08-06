@@ -15,7 +15,6 @@ export class ListingService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
-    private listingSearchBuilder: ListingSearchBuilder
   )
   {
     this.s3Client = new S3Client({
@@ -82,12 +81,12 @@ export class ListingService {
   async getListings(filterDTO: ListingFilterDTO): Promise<IListingSearchBuilderResult>
   {
     try {
-      return await this.listingSearchBuilder
+      return (new ListingSearchBuilder(this.prisma))
         .setDTO(filterDTO)
         .getCategory()
         .getPage()
         .getSearch()
-        .getPaginatedResult()
+        .getPaginatedResult();
     } catch (error) {
       throw new GenericException(error)
     }

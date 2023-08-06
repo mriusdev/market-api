@@ -1,10 +1,10 @@
-const CATEGORY_IDS_TO_NAMES = {
-  1: 'Electronics',
-  2: 'Furniture',
-  3: 'Vechicles',
-  4: 'Clothing'
+const CATEGORY_NAMES_TO_IDS = {
+  Electronics: 1,
+  Furniture: 2,
+  Vehicles: 3,
+  Clothing: 4
 }
-const ALLOWED_CATEGORY_IDS = Object.keys(CATEGORY_IDS_TO_NAMES)
+const ALLOWED_CATEGORY_IDS = Object.values(CATEGORY_NAMES_TO_IDS)
 
 export {
   ALLOWED_CATEGORY_IDS

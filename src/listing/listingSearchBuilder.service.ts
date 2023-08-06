@@ -1,6 +1,5 @@
 import { ListingFilterDTO } from "./dto";
 import { PrismaService } from "../prisma/prisma.service";
-import { Injectable } from "@nestjs/common";
 
 export interface IListingSearchBuilderResult
 {
@@ -8,7 +7,6 @@ export interface IListingSearchBuilderResult
   data: any
 }
 
-@Injectable()
 export class ListingSearchBuilder
 {
   private static readonly DEFAULT_PER_PAGE: number = 2;
@@ -16,9 +14,12 @@ export class ListingSearchBuilder
 
   private listingSearchDTO: ListingFilterDTO;
   private page: number;
-  private whereQuery: {};
+  private whereQuery: {} = {};
+  private prisma: PrismaService;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(prisma: PrismaService) {
+    this.prisma = prisma;
+  }
 
   setDTO(dto: ListingFilterDTO): ListingSearchBuilder
   {
@@ -36,7 +37,7 @@ export class ListingSearchBuilder
     this.whereQuery = {
       ...this.whereQuery,
       category: {
-        id: +category
+        id: category
       }
     }
     return this;
