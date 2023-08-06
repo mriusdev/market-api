@@ -8,7 +8,6 @@ import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImag
 import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { ConfigService } from '@nestjs/config';
 import { IListingSearchBuilderResult, ListingSearchBuilder } from './listingSearchBuilder.service';
-import { log } from 'console';
 
 @Injectable()
 export class ListingService {
@@ -82,27 +81,12 @@ export class ListingService {
   async getListings(filterDTO: ListingFilterDTO): Promise<IListingSearchBuilderResult>
   {
     try {
-      // console.log('results', await this.listingSearchBuilder
-      // .setDTO(filterDTO)
-      // .getCategory()
-      // .getPage()
-      // .getSearch()
-      // .getPaginatedResult());
-
       return (new ListingSearchBuilder(this.prisma))
         .setDTO(filterDTO)
         .getCategory()
         .getPage()
         .getSearch()
         .getPaginatedResult();
-      
-      // return await this.listingSearchBuilder
-      //   .setDTO(filterDTO)
-      //   .getCategory()
-      //   .getPage()
-      //   .getSearch()
-      //   .getPaginatedResult();
-
     } catch (error) {
       throw new GenericException(error)
     }

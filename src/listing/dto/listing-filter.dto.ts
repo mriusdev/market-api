@@ -6,7 +6,7 @@ export class ListingFilterDTO {
   @Type(() => Number)
   @IsInt()
   @IsOptional()
-  // @IsIn(ALLOWED_CATEGORY_IDS)
+  @IsIn(ALLOWED_CATEGORY_IDS)
   category: number
 
   @Type(() => Number)
