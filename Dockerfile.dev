@@ -1,0 +1,16 @@
+FROM node:18.18.0-bullseye as base
+
+WORKDIR /app
+
+COPY tsconfig*.json ./
+COPY package*.json ./
+
+RUN apt-get update && \
+  apt install curl && \
+  npm install -g @nestjs/cli
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["sleep", "infinity"]

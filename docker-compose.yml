@@ -13,6 +13,20 @@ services:
     networks:
       - devnetwork
 
+  node-backend:
+    container_name: node-backend
+    depends_on:
+      - dev-db
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./:/app
+    ports:
+      - 3000:3000
+    networks:
+      - devnetwork
+
 volumes:
   dbdata:
 networks:
