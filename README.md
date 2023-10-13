@@ -23,7 +23,21 @@ $ npm install
 # generate prisma config files
 $ npx prisma generate
 ```
+
+Database migrations & seeding
 ```bash
-# start the app
+# inside backend docker container
+# migrates tables
+$ npx prisma migrate dev
+```
+```bash
+# inside backend docker container
+# seeds tables
+$ npx prisma db seed
+```
+
+Running app
+```bash
+# inside backend docker container
 $ npm run start dev
 ```
