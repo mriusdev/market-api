@@ -16,8 +16,8 @@ export class ListingCreateDTO {
   @IsNumber({ maxDecimalPlaces: 2})
   price: number;
 
-  @IsNumberString()
   @IsNotEmpty()
+  @Type(() => Number)
   @IsIn(ALLOWED_CATEGORY_IDS)
-  category: string
+  category: number
 }

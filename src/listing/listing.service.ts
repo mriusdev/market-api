@@ -5,32 +5,27 @@ import { GenericSuccessResponse } from '../common/helpers/responses';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { ConfigService } from '@nestjs/config';
 import { IListingSearchBuilderResult, ListingSearchBuilder } from './listingSearchBuilder.service';
+import { S3Service } from '../s3/s3.service';
+import { listingImagesService } from './listingImages.service';
 
 @Injectable()
 export class ListingService {
-  s3Client: S3Client
+  private s3Client: S3Client
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private listingImagesService: listingImagesService,
+    s3Service: S3Service
   )
   {
-    this.s3Client = new S3Client({
-      region: this.config.get('AWS_REGION'),
-      credentials: {
-        accessKeyId: this.config.get('AWS_ACCESS_KEY'),
-        secretAccessKey: this.config.get('AWS_SECRET_KEY')
-      }
-    })
+    this.s3Client = s3Service.client();
   }
 
-  async createListing(dto: ListingCreateDTO, userId: number, files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse> {
+  async createListing(dto: ListingCreateDTO, userId: number): Promise<IGenericSuccessResponse> {
     try {
-      //first create listing
-      //upload s3 image(s)
-      //create listing image with listingId
       const listing = await this.prisma.listing.create({
         data: {
           title: dto.title,
@@ -40,36 +35,39 @@ export class ListingService {
           userId: userId
         }
       })
+      const finalBucketImageLocations: string[] = [];
 
-      const arrayOfFilesToBeUploaded = [];
-      const fileLocations = [];
-      
-      for (const file of files) {
-        const fullFileLocation = `listings/${listing.id}/${file.originalname}`
-        const params = {
-          Bucket: this.config.get('AWS_BUCKET_NAME'),
-          Key: fullFileLocation,
-          Body: file.buffer,
-          ContentType: file.mimetype
-        }
-        const command = new PutObjectCommand(params)
-        arrayOfFilesToBeUploaded.push(this.s3Client.send(command))
-        fileLocations.push(fullFileLocation)
+      // if images exist in temporary
+      if (this.listingImagesService.temporaryImagesExist(userId)) {
+        // get each full path from list command
+        const temporaryImages = await this.listingImagesService.getImages(userId);
+        const copyCommands = [];
+        temporaryImages.Contents.forEach(image => {
+          const fileName = image.Key.split('/')[1];
+          const fullImageLocationFinal = `listings/${listing.id}/${fileName}`;
+
+          const command = new CopyObjectCommand({
+            CopySource: this.config.get('AWS_TEMPORARY_USER_LISTING_IMAGES_BUCKET_NAME') + '/' + image.Key,
+            Bucket: this.config.get('AWS_BUCKET_NAME'),
+            Key: `listings/${listing.id}/${fileName}`
+          });
+          copyCommands.push(this.s3Client.send(command));
+          finalBucketImageLocations.push(fullImageLocationFinal);
+        })
+
+        await Promise.all(copyCommands);
       }
 
-      // better error handling could be done here perhaps
-      // what if one of the listings fail?
-      await Promise.all(arrayOfFilesToBeUploaded)
-
-
-      for (const fileLocation of fileLocations) {
+      for (const bucketImageLocation of finalBucketImageLocations) {
         await this.prisma.listingImages.create({
           data: {
-            imageLocation: fileLocation,
+            imageLocation: bucketImageLocation,
             listingId: listing.id
           }
         })
       }
+
+      await this.listingImagesService.removeTemporaryImages(userId);
 
       return GenericSuccessResponse(HttpStatus.CREATED, 'Listing created', listing)
       

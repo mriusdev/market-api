@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Put, Query, Req, SetMetadata, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseFilePipe, ParseIntPipe, Patch, Post, Put, Query, Req, SetMetadata, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { JwtAuthAccessGuard } from '../auth/guard';
@@ -10,17 +10,44 @@ import { Roles } from '../user/roles/roles.decorator';
 import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
 import { ListingService } from './listing.service';
 import { SuccessResponse, ISuccessResponse } from '../common/helpers/responses/success-response';
+import { listingImagesService } from './listingImages.service';
+import { FileExistsValidator } from '../common/validators/file-exists.validator';
 
 @Controller('listings')
 export class ListingController {
-  constructor(private listingService: ListingService) {}
+  constructor(private listingService: ListingService, private listingImagesService: listingImagesService) {}
 
   @UseGuards(JwtAuthAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @Post()
-  @UseInterceptors(FilesInterceptor('files'))
-  createListing(@Body() dto: ListingCreateDTO, @Req() req: Request, @UploadedFiles() files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse> {
-    return this.listingService.createListing(dto, req.user['id'], files);
+  createListing(@Body() dto: ListingCreateDTO, @Req() req: Request): Promise<IGenericSuccessResponse> {
+    return this.listingService.createListing(dto, req.user['id']);
+  }
+
+  @UseGuards(JwtAuthAccessGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(FileInterceptor('file'))
+  @Post('temporary-images')
+  async uploadImages(
+    @Req() req: Request,
+    @UploadedFile(new ParseFilePipe({
+      validators: [
+        new FileExistsValidator()
+      ]
+    })) image: Express.Multer.File
+  )
+  {
+    // if images are uploaded on client, we will take them and feed them to this endpoint to upload
+    // listing is created and we find stored images:
+    //      once text content of listing is created we will take the recent images placed under
+    //            users id and bring them to the listing id directory
+    // listing is created and no stored images are found:
+    //      if no stored images are found under the users name, we add placeholder images
+    await this.listingImagesService.saveTemporaryImages(req.user['id'], image);
+    return {
+      message: 'ok'
+    }
+
   }
 
   @HttpCode(HttpStatus.OK)
