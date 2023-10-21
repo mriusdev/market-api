@@ -39,5 +39,5 @@ $ npx prisma db seed
 Running app
 ```bash
 # inside backend docker container
-$ npm run start dev
+$ npm run start:dev
 ```

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Put, Query, Req, SetMetadata, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseFilePipe, ParseIntPipe, Patch, Post, Put, Query, Req, SetMetadata, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { JwtAuthAccessGuard } from '../auth/guard';
@@ -9,18 +9,30 @@ import { RolesGuard } from '../user/guards/roles.guard';
 import { Roles } from '../user/roles/roles.decorator';
 import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
 import { ListingService } from './listing.service';
-import { SuccessResponse, ISuccessResponse } from '../common/helpers/responses/success-response';
+import { SuccessResponse, ISuccessResponse } from '../common/http/success-response';
+import { TemporaryImagesService } from './temporary-images.service';
 
 @Controller('listings')
 export class ListingController {
-  constructor(private listingService: ListingService) {}
+  constructor(private listingService: ListingService, private temporaryImagesService: TemporaryImagesService) {}
 
   @UseGuards(JwtAuthAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @Post()
+  async createListing(@Body() dto: ListingCreateDTO, @Req() req: Request): Promise<ISuccessResponse> {
+    return SuccessResponse(await this.listingService.createListing(dto, req.user['id']));
+  }
+
+  @UseGuards(JwtAuthAccessGuard)
+  @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(FilesInterceptor('files'))
-  createListing(@Body() dto: ListingCreateDTO, @Req() req: Request, @UploadedFiles() files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse> {
-    return this.listingService.createListing(dto, req.user['id'], files);
+  @Post('temporary-images')
+  async uploadImages(
+    @Req() req: Request,
+    @UploadedFiles(new ParseFilePipe()) images: Express.Multer.File[]
+  ): Promise<ISuccessResponse>
+  {
+    return SuccessResponse(await this.temporaryImagesService.saveImages(req.user['id'], images));
   }
 
   @HttpCode(HttpStatus.OK)

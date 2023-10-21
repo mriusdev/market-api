@@ -5,10 +5,12 @@ import { ListingModule } from './listing/listing.module';
 import { CategoryModule } from './category/category.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ConfigModule } from '@nestjs/config';
+import { S3Module } from './s3/s3.module';
 
 @Module({
   imports: [
     AuthModule,
+    S3Module,
     UserModule,
     ListingModule,
     CategoryModule,

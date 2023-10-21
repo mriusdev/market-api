@@ -21,7 +21,7 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  role     Role      @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  role     Role      @relation(fields: [roleId], references: [id], onDelete: SetDefault)
   listings Listing[]
 
   @@map("users")
@@ -51,7 +51,7 @@ model ListingImages {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  listing Listing @relation(fields: [listingId], references: [id])
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@map("listing_images")
 }

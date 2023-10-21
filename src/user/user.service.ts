@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { NotFoundError } from '@prisma/client/runtime';
-import { GenericException } from '../common/helpers/exceptions';
+import { GenericException } from '../common/http/exceptions/generic.exception';
 import { GenericSuccessResponse } from '../common/helpers/responses';
 import { PrismaService } from '../prisma/prisma.service';
 
