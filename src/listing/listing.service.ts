@@ -1,15 +1,15 @@
 import { HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { NotFoundError } from '@prisma/client/runtime';
-import { GenericException } from '../common/helpers/exceptions';
+import { GenericException } from '../common/http/exceptions/generic.exception';
 import { GenericSuccessResponse } from '../common/helpers/responses';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { ConfigService } from '@nestjs/config';
-import { IListingSearchBuilderResult, ListingSearchBuilder } from './listingSearchBuilder.service';
+import { IListingSearchBuilderResult, ListingSearchBuilder } from './listing-search-builder.service';
 import { S3Service } from '../s3/s3.service';
-import { listingImagesService } from './listingImages.service';
+import { TemporaryImagesService } from './temporary-images.service';
 
 @Injectable()
 export class ListingService {
@@ -17,14 +17,14 @@ export class ListingService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
-    private listingImagesService: listingImagesService,
+    private temporaryImagesService: TemporaryImagesService,
     s3Service: S3Service
   )
   {
     this.s3Client = s3Service.client();
   }
 
-  async createListing(dto: ListingCreateDTO, userId: number): Promise<IGenericSuccessResponse> {
+  async createListing(dto: ListingCreateDTO, userId: number): Promise<boolean> {
     try {
       const listing = await this.prisma.listing.create({
         data: {
@@ -37,20 +37,19 @@ export class ListingService {
       })
       const finalBucketImageLocations: string[] = [];
 
-      // if images exist in temporary
-      if (this.listingImagesService.temporaryImagesExist(userId)) {
-        // get each full path from list command
-        const temporaryImages = await this.listingImagesService.getImages(userId);
+      if (this.temporaryImagesService.imagesExist(userId)) {
+        const temporaryImages = await this.temporaryImagesService.getImages(userId);
         const copyCommands = [];
+
         temporaryImages.Contents.forEach(image => {
           const fileName = image.Key.split('/')[1];
           const fullImageLocationFinal = `listings/${listing.id}/${fileName}`;
-
           const command = new CopyObjectCommand({
-            CopySource: this.config.get('AWS_TEMPORARY_USER_LISTING_IMAGES_BUCKET_NAME') + '/' + image.Key,
+            CopySource: `${this.config.get('AWS_TEMPORARY_USER_LISTING_IMAGES_BUCKET_NAME')}/${image.Key}`,
             Bucket: this.config.get('AWS_BUCKET_NAME'),
             Key: `listings/${listing.id}/${fileName}`
           });
+
           copyCommands.push(this.s3Client.send(command));
           finalBucketImageLocations.push(fullImageLocationFinal);
         })
@@ -67,12 +66,11 @@ export class ListingService {
         })
       }
 
-      await this.listingImagesService.removeTemporaryImages(userId);
+      await this.temporaryImagesService.removeImagesByUserId(userId);
 
-      return GenericSuccessResponse(HttpStatus.CREATED, 'Listing created', listing)
-      
+      return true;
     } catch (error) {
-      throw new GenericException(error)
+      throw new GenericException(error);
     }
   }
 

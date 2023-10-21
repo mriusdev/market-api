@@ -2,12 +2,13 @@ import { Injectable } from "@nestjs/common";
 import { S3Service } from "../s3/s3.service";
 import { DeleteObjectCommand, DeleteObjectCommandOutput, DeleteObjectsCommand, ListObjectsV2Command, ListObjectsV2CommandOutput, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { ConfigService } from "@nestjs/config";
+import { MaximumImagesException } from "../common/http/exceptions/temporary-images/maximum-images.exception";
 
 @Injectable()
-export class listingImagesService {
-
+export class TemporaryImagesService
+{
+  private maximumImagesCount: number = 3;
   private temporaryImagesS3BucketName: string;
-
   private s3Client: S3Client;
 
   constructor(private config: ConfigService, s3Service: S3Service) {
@@ -15,33 +16,34 @@ export class listingImagesService {
     this.temporaryImagesS3BucketName = this.config.get('AWS_TEMPORARY_USER_LISTING_IMAGES_BUCKET_NAME')
   }
 
-  async saveTemporaryImages(userId: number, image: Express.Multer.File): Promise<boolean>
+  async saveImages(userId: number, images: Express.Multer.File[]): Promise<boolean>
   {
-    console.log('user id received', userId);
-    const fullFileLocation = `${userId}/${image.originalname}`
-    const command = new PutObjectCommand({
-      Bucket: this.temporaryImagesS3BucketName,
-      Key: fullFileLocation,
-      Body: image.buffer,
-      ContentType: image.mimetype
-    })
-    const data = await this.s3Client.send(command);
-    console.log('data from upload command', data);
+    await this.validateImages(images, userId);
+
+    const s3SaveImageCalls = [];
+    for (const image of images) {
+      const command = new PutObjectCommand({
+        Bucket: this.temporaryImagesS3BucketName,
+        Key: `${userId}/${image.originalname}`,
+        Body: image.buffer,
+        ContentType: image.mimetype
+      });
+      s3SaveImageCalls.push(this.s3Client.send(command));
+    }
+
+    await Promise.all(s3SaveImageCalls);
 
     return true;
   }
 
-  async temporaryImagesExist(userId: number): Promise<boolean>
+  async imagesExist(userId: number): Promise<boolean>
   {
-    // if images are found return Boolean, if not returen false
-    console.log('user id received', userId);
     const command = new ListObjectsV2Command({
       Bucket: this.temporaryImagesS3BucketName,
       Prefix: `${userId}/`,
       MaxKeys: 1,
     })
     const data = await this.s3Client.send(command);
-    console.log('data from list command', data);
 
     return !!data?.KeyCount;
   }
@@ -54,42 +56,37 @@ export class listingImagesService {
       MaxKeys: 3,
     })
     const data = await this.s3Client.send(command);
+
     return data;
   }
 
-  copyTemporaryImagesToListingImages(listingId: number): void
-  {
-    // foreach full image path (only the file path, not including the aws url)
-
-    // foreach found file
-      // COPY file to actual listing BY id directory
-  }
-
-  async removeTemporaryImages(userId: number): Promise<boolean>
+  async removeImagesByUserId(userId: number): Promise<boolean>
   {
     const images = await this.getImages(userId);
-
-    // images.forEach(image => {
-
-    // })
-
     const deleteImageCommands = [];
 
     images.Contents.forEach(image => {
       const command = new DeleteObjectCommand({
         Bucket: this.temporaryImagesS3BucketName,
-        Key: image.Key,
-        // Key: `${this.temporaryImagesS3BucketName}/${userId}/`,
+        Key: image.Key
       })
-      // const data = await this.s3Client.send(command);
       deleteImageCommands.push(this.s3Client.send(command));
     })
 
     await Promise.all(deleteImageCommands);
     
-    // console.log('delete data', data);
-    
     return true;
-    // removes folder containing user imagges by user id
+  }
+
+  async validateImages(images: Express.Multer.File[], userId: number): Promise<void>
+  {
+    if (images.length > this.maximumImagesCount) {
+      throw new MaximumImagesException(); 
+    }
+
+    const uploadedImages = await this.getImages(userId);
+    if (uploadedImages?.KeyCount === this.maximumImagesCount) {
+      throw new MaximumImagesException();
+    }
   }
 }

@@ -8,7 +8,7 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { IJwtTokens } from "./interfaces";
 import { Request, Response } from "express";
-import { GenericException } from "../common/helpers/exceptions";
+import { GenericException } from "../common/http/exceptions/generic.exception";
 
 @Injectable()
 export class AuthService {
@@ -91,10 +91,10 @@ export class AuthService {
         }
       },
       data: {
-        refreshTokenHash: null
+        refreshTokenHash: null  
       }
     })
-    res.clearCookie('rt', { httpOnly: true, sameSite: 'none', secure: true })
+    res.clearCookie('rt', { httpOnly: true, sameSite: 'none', secure: true });
   }
 
   // checkRt(req: Request, res: Response) {
@@ -132,10 +132,12 @@ export class AuthService {
     const [access_token, refresh_token] = await Promise.all([
       this.jwt.signAsync(payload, {
         expiresIn: '15m',
+        // expiresIn: '1m',
         secret: this.config.get('JWT_SECRET_KEY')
       }),
       this.jwt.signAsync(payload, {
         expiresIn: '30m',
+        // expiresIn: '2m',
         secret: this.config.get('JWT_REFRESH_SECRET_KEY')
       }),
     ])

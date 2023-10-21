@@ -9,45 +9,30 @@ import { RolesGuard } from '../user/guards/roles.guard';
 import { Roles } from '../user/roles/roles.decorator';
 import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
 import { ListingService } from './listing.service';
-import { SuccessResponse, ISuccessResponse } from '../common/helpers/responses/success-response';
-import { listingImagesService } from './listingImages.service';
-import { FileExistsValidator } from '../common/validators/file-exists.validator';
+import { SuccessResponse, ISuccessResponse } from '../common/http/success-response';
+import { TemporaryImagesService } from './temporary-images.service';
 
 @Controller('listings')
 export class ListingController {
-  constructor(private listingService: ListingService, private listingImagesService: listingImagesService) {}
+  constructor(private listingService: ListingService, private temporaryImagesService: TemporaryImagesService) {}
 
   @UseGuards(JwtAuthAccessGuard)
   @HttpCode(HttpStatus.CREATED)
   @Post()
-  createListing(@Body() dto: ListingCreateDTO, @Req() req: Request): Promise<IGenericSuccessResponse> {
-    return this.listingService.createListing(dto, req.user['id']);
+  async createListing(@Body() dto: ListingCreateDTO, @Req() req: Request): Promise<ISuccessResponse> {
+    return SuccessResponse(await this.listingService.createListing(dto, req.user['id']));
   }
 
   @UseGuards(JwtAuthAccessGuard)
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FilesInterceptor('files'))
   @Post('temporary-images')
   async uploadImages(
     @Req() req: Request,
-    @UploadedFile(new ParseFilePipe({
-      validators: [
-        new FileExistsValidator()
-      ]
-    })) image: Express.Multer.File
-  )
+    @UploadedFiles(new ParseFilePipe()) images: Express.Multer.File[]
+  ): Promise<ISuccessResponse>
   {
-    // if images are uploaded on client, we will take them and feed them to this endpoint to upload
-    // listing is created and we find stored images:
-    //      once text content of listing is created we will take the recent images placed under
-    //            users id and bring them to the listing id directory
-    // listing is created and no stored images are found:
-    //      if no stored images are found under the users name, we add placeholder images
-    await this.listingImagesService.saveTemporaryImages(req.user['id'], image);
-    return {
-      message: 'ok'
-    }
-
+    return SuccessResponse(await this.temporaryImagesService.saveImages(req.user['id'], images));
   }
 
   @HttpCode(HttpStatus.OK)
