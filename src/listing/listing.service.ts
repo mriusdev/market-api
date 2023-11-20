@@ -76,6 +76,7 @@ export class ListingService {
 
   async getListings(filterDTO: ListingFilterDTO): Promise<IListingSearchBuilderResult>
   {
+    console.log('testing changes');
     try {
       return (new ListingSearchBuilder(this.prisma))
         .setDTO(filterDTO)
