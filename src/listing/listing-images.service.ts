@@ -45,15 +45,17 @@ export class ListingImagesService
       return;
     }
 
-    for (const bucketImageLocation of finalBucketImageLocations) {
-      await this.prisma.listingImages.create({
+    const listingImagePromises = finalBucketImageLocations.map(bucketImageLocation => this.prisma.listingImages.create({
         data: {
           imageLocation: bucketImageLocation,
           listingId: listing.id
         }
       })
-    }
+    )
 
-    await this.temporaryImagesService.removeImagesByUserId(listing.userId);
+    await Promise.all([
+      ...listingImagePromises,
+      this.temporaryImagesService.removeImagesByUserId(listing.userId)
+    ])
   }
 }
