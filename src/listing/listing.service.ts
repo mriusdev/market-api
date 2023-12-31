@@ -1,30 +1,42 @@
-import { HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
-import { NotFoundError } from '@prisma/client/runtime';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Decimal, NotFoundError } from '@prisma/client/runtime';
 import { GenericException } from '../common/http/exceptions/generic.exception';
 import { GenericSuccessResponse } from '../common/helpers/responses';
 import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
-import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
-import { ConfigService } from '@nestjs/config';
+import { ListingCreateDTO, ListingFilterDTO, ListingUpdateDTO } from './dto';
 import { IListingSearchBuilderResult, ListingSearchBuilder } from './listing-search-builder.service';
-import { S3Service } from '../s3/s3.service';
-import { TemporaryImagesService } from './temporary-images.service';
+import { Listing } from '@prisma/client';
+import { ListingImagesService } from './listing-images.service';
+
+export interface IGetListingData {
+  id: number;
+  createdAt: Date;
+  title: string;
+  price: Decimal;
+  description: string;
+  author: {
+      username: string;
+  };
+  category: {
+      description: string;
+      name: string;
+  };
+  listingImages: {
+      id: number;
+      imageLocation: string;
+  }[];
+}
 
 @Injectable()
 export class ListingService {
-  private s3Client: S3Client
+
   constructor(
     private prisma: PrismaService,
-    private config: ConfigService,
-    private temporaryImagesService: TemporaryImagesService,
-    s3Service: S3Service
-  )
-  {
-    this.s3Client = s3Service.client();
-  }
+    private listingImagesService: ListingImagesService
+  ) {}
 
-  async createListing(dto: ListingCreateDTO, userId: number): Promise<boolean> {
+  async createListing(dto: ListingCreateDTO, userId: number): Promise<Listing> {
     try {
       const listing = await this.prisma.listing.create({
         data: {
@@ -35,40 +47,10 @@ export class ListingService {
           userId: userId
         }
       })
-      const finalBucketImageLocations: string[] = [];
 
-      if (this.temporaryImagesService.imagesExist(userId)) {
-        const temporaryImages = await this.temporaryImagesService.getImages(userId);
-        const copyCommands = [];
+      await this.listingImagesService.saveImages(listing);
 
-        temporaryImages.Contents.forEach(image => {
-          const fileName = image.Key.split('/')[1];
-          const fullImageLocationFinal = `listings/${listing.id}/${fileName}`;
-          const command = new CopyObjectCommand({
-            CopySource: `${this.config.get('AWS_TEMPORARY_USER_LISTING_IMAGES_BUCKET_NAME')}/${image.Key}`,
-            Bucket: this.config.get('AWS_BUCKET_NAME'),
-            Key: `listings/${listing.id}/${fileName}`
-          });
-
-          copyCommands.push(this.s3Client.send(command));
-          finalBucketImageLocations.push(fullImageLocationFinal);
-        })
-
-        await Promise.all(copyCommands);
-      }
-
-      for (const bucketImageLocation of finalBucketImageLocations) {
-        await this.prisma.listingImages.create({
-          data: {
-            imageLocation: bucketImageLocation,
-            listingId: listing.id
-          }
-        })
-      }
-
-      await this.temporaryImagesService.removeImagesByUserId(userId);
-
-      return true;
+      return listing;
     } catch (error) {
       throw new GenericException(error);
     }
@@ -88,7 +70,7 @@ export class ListingService {
     }
   }
 
-  async getListing(id: number): Promise<IGenericSuccessResponse>
+  async getListing(id: number): Promise<IGetListingData>
   {
     try {
       const listing = await this.prisma.listing.findFirstOrThrow({
@@ -120,7 +102,8 @@ export class ListingService {
           }
         }
       })
-      return GenericSuccessResponse(undefined, undefined, listing)
+
+      return listing;
     } catch (error) {
       if (error instanceof NotFoundError) {
         throw new GenericException('Listing not found')
@@ -129,183 +112,51 @@ export class ListingService {
     }
   }
 
-  async updateListing(listingId: number, userId: number, dto: ListingUpdateDTO): Promise<IGenericSuccessResponse>
+  async updateListing(listing: Listing, userId: number, dto: ListingUpdateDTO): Promise<Listing>
   {
-    try {
-      const listing = await this.prisma.listing.findFirst({
-        where: {
-          id: listingId,
-          userId
-        }
-      })
-
-      if (!listing) {
-        throw new UnauthorizedException()
-      }
-      
-      const updatedListing = await this.prisma.listing.update({
-        data: {
-          title: dto.title,
-          price: dto.price,
-          description: dto.description,
-          categoryId: dto.categoryId
-        },
-        where: {
-          id: listingId,
-        }
-      })
-
-      return GenericSuccessResponse(undefined, 'Listing updated', updatedListing)
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error
-      }
-      throw new GenericException()
+    if (listing.userId !== userId) {
+      throw new GenericException('Unauthorized listing modification');
     }
-  }
 
-  //TODO: rethink this methods usefulness. Logic could be used for listing creation during
-  // image upload
-  async uploadListingImages(id: number, userId: number, files: Array<Express.Multer.File>): Promise<IGenericSuccessResponse>
-  {
-    try {
-      const listing = await this.prisma.listing.findFirst({
+    if (dto.deletedListingImages && dto.deletedListingImages.length) {
+      const currentImageIds = listing['listingImages'].map(value => value.id);
+      let invalidImageIdDetected = false;
+
+      for (let i = 0; i < dto.deletedListingImages.length; i++) {
+        if (invalidImageIdDetected) {
+          break;
+        }
+        if (!currentImageIds.includes(dto.deletedListingImages[i])) {
+          invalidImageIdDetected = true;
+        }
+      }
+    }
+
+    const updatedListing = await this.prisma.listing.update({
+      data: {
+        title: dto.listingTextData.title,
+        price: dto.listingTextData.price,
+        description: dto.listingTextData.description
+      },
+      where: {
+        id: listing.id
+      }
+    });
+
+    if (dto.deletedListingImages) {
+      await this.prisma.listingImages.deleteMany({
         where: {
-          id,
-          userId
-        }
-      })
-  
-      if (!listing) {
-        throw new UnauthorizedException()
-      }
-
-      const arrayOfFilesToBeUploaded = [];
-      const fileLocations = [];
-      
-      for (const file of files) {
-        const fullFileLocation = `listings/${id}/${file.originalname}`
-        const params = {
-          Bucket: this.config.get('AWS_BUCKET_NAME'),
-          Key: fullFileLocation,
-          Body: file.buffer,
-          ContentType: file.mimetype
-        }
-        const command = new PutObjectCommand(params)
-        arrayOfFilesToBeUploaded.push(this.s3Client.send(command))
-        fileLocations.push(fullFileLocation)
-      }
-
-      await Promise.all(arrayOfFilesToBeUploaded)
-      for (const fileLocation of fileLocations) {
-        await this.prisma.listingImages.create({
-          data: {
-            imageLocation: fileLocation,
-            listingId: id
+          id: {
+            in: dto.deletedListingImages
           }
-        })
-      }
-      return GenericSuccessResponse(undefined, 'Image upload success', {})
-    } catch (error) {
-      throw new GenericException(error)
+        }
+      });
     }
-  }
 
-  //TODO refactor repeating 'findIfExists' s3 code
-  async updateListingImages(id: number, userId: number, file: Express.Multer.File, dto: ListingImagesUpdateDTO)
-  {
-    try {
-      const listing = await this.prisma.listing.findFirst({
-        where: {
-          id,
-          userId
-        }
-      })
-  
-      if (!listing) {
-        throw new UnauthorizedException()
-      }
+    await this.listingImagesService.saveImages(updatedListing)
+      .catch(() => {});
 
-      const headObjectCommandParams = {
-        Bucket: this.config.get('AWS_BUCKET_NAME'),
-        Key: dto.path,
-      }
-      const headObjectCommand = new HeadObjectCommand(headObjectCommandParams)
-      const currentImage = await this.s3Client.send(headObjectCommand)
-      if (!currentImage) {
-        throw new UnauthorizedException()
-      }
-
-      const newFullFileLocation = `listings/${id}/${file.originalname}`
-      const putObjectCommandParams = {
-        Bucket: this.config.get('AWS_BUCKET_NAME'),
-        Key: newFullFileLocation,
-        Body: file.buffer,
-        ContentType: file.mimetype
-      }
-      const putObjectCommand = new PutObjectCommand(putObjectCommandParams)
-      await this.s3Client.send(putObjectCommand)
-
-      const deleteObjectCommandParams = {
-        Bucket: this.config.get('AWS_BUCKET_NAME'),
-        Key: dto.path,
-      }
-      const deleteObjectCommand = new DeleteObjectCommand(deleteObjectCommandParams)
-      await this.s3Client.send(deleteObjectCommand)
-
-      const updatedImage = await this.prisma.listingImages.update({
-        where: {
-          id: +dto.id
-        },
-        data: {
-          imageLocation: newFullFileLocation
-        }
-      })
-      
-      return GenericSuccessResponse(undefined, 'Image upload success', updatedImage)
-    } catch (error) {
-      throw new GenericException(error)
-    }
-  }
-
-  async deleteListingImages(id: number, userId: number, dto: ListingImagesDeleteDTO): Promise<IGenericSuccessResponse>
-  {
-    try {
-      const listing = await this.prisma.listing.findFirst({
-        where: {
-          id,
-          userId
-        }
-      })
-  
-      if (!listing) {
-        throw new UnauthorizedException()
-      }
-
-      for (const imageInfo of dto.imageDetails) {
-
-        const splitUrl = imageInfo.imagePath.split("/")
-        if (+splitUrl[1] !== id) {
-          throw new UnauthorizedException()
-        }
-  
-        const params = {
-          Bucket: this.config.get('AWS_BUCKET_NAME'),
-          Key: imageInfo.imagePath,
-        }
-  
-        const command = new DeleteObjectCommand(params)
-        await this.s3Client.send(command)
-        await this.prisma.listingImages.delete({
-          where: {
-            id: +imageInfo.id
-          }
-        })
-      }
-      return GenericSuccessResponse(undefined, 'Image(s) successfully removed', {})
-    } catch (error) {
-      throw new GenericException(error)
-    }
+    return updatedListing;
   }
 
   async deleteListing(listingId: number, userId: number): Promise<IGenericSuccessResponse>
@@ -321,7 +172,7 @@ export class ListingService {
       if (!listing) {
         throw new UnauthorizedException()
       }
-
+      // TODO: before removing listing, first remove related s3 files and then delete references to those files in db
       await this.prisma.listing.delete({
         where: {
           id: listingId,

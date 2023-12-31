@@ -3,16 +3,15 @@ import { S3Service } from "../s3/s3.service";
 import { DeleteObjectCommand, DeleteObjectCommandOutput, DeleteObjectsCommand, ListObjectsV2Command, ListObjectsV2CommandOutput, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { ConfigService } from "@nestjs/config";
 import { MaximumImagesException } from "../common/http/exceptions/temporary-images/maximum-images.exception";
+import { GenericException } from "../common/http/exceptions/generic.exception";
 
 @Injectable()
 export class TemporaryImagesService
 {
   private maximumImagesCount: number = 3;
   private temporaryImagesS3BucketName: string;
-  private s3Client: S3Client;
 
-  constructor(private config: ConfigService, s3Service: S3Service) {
-    this.s3Client = s3Service.client();
+  constructor(private config: ConfigService, private awsS3: S3Service) {
     this.temporaryImagesS3BucketName = this.config.get('AWS_TEMPORARY_USER_LISTING_IMAGES_BUCKET_NAME')
   }
 
@@ -28,7 +27,7 @@ export class TemporaryImagesService
         Body: image.buffer,
         ContentType: image.mimetype
       });
-      s3SaveImageCalls.push(this.s3Client.send(command));
+      s3SaveImageCalls.push(this.awsS3.client().send(command));
     }
 
     await Promise.all(s3SaveImageCalls);
@@ -43,8 +42,9 @@ export class TemporaryImagesService
       Prefix: `${userId}/`,
       MaxKeys: 1,
     })
-    const data = await this.s3Client.send(command);
-
+    const data = await this.awsS3.client().send(command);
+    // console.log('images exist data', data, 'return value', !!data?.KeyCount);
+    // throw new GenericException('aaaaaa');
     return !!data?.KeyCount;
   }
 
@@ -53,9 +53,9 @@ export class TemporaryImagesService
     const command = new ListObjectsV2Command({
       Bucket: this.temporaryImagesS3BucketName,
       Prefix: `${userId}/`,
-      MaxKeys: 3,
+      MaxKeys: this.maximumImagesCount,
     })
-    const data = await this.s3Client.send(command);
+    const data = await this.awsS3.client().send(command);
 
     return data;
   }
@@ -70,7 +70,7 @@ export class TemporaryImagesService
         Bucket: this.temporaryImagesS3BucketName,
         Key: image.Key
       })
-      deleteImageCommands.push(this.s3Client.send(command));
+      deleteImageCommands.push(this.awsS3.client().send(command));
     })
 
     await Promise.all(deleteImageCommands);
