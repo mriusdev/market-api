@@ -1,1 +1,1 @@
-export * from './validate-payload-exists.pipe';
+export * from './listing-update-payload.pipe';

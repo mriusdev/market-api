@@ -9,10 +9,10 @@ export class ListingFilterDTO {
   @IsIn(ALLOWED_CATEGORY_IDS)
   category: number
 
-  @Type(() => Number)
-  @IsInt()
-  @Min(2)
-  perPage: number
+  // @Type(() => Number)
+  // @IsInt()
+  // @Min(2)
+  // perPage: number
 
   @Type(() => Number)
   @IsInt()

@@ -1,25 +1,41 @@
-import { Transform, Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 
-export class ListingUpdateDTO {
-  @IsNotEmpty()
+class ListingTextDataDTO 
+{
   @IsOptional()
   @IsString()
-  title?: string;
+  title?: string
 
-  @IsNotEmpty()
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string
 
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
-  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2})
   price?: number;
+}
 
-  @Transform(({ value }) => value && parseInt(value))
-  @IsNotEmpty()
+class ModifiedListingImageDataDTO
+{
   @IsOptional()
-  categoryId?: number;
+  @IsNumber({}, { each: true })
+  deletedImageIds: number[];
+
+  @IsOptional()
+  @IsBoolean()
+  newImagesAdded: boolean;
+}
+
+export class ListingUpdateDTO {
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => ListingTextDataDTO)
+  listingTextData: ListingTextDataDTO;
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => ModifiedListingImageDataDTO)
+  modifiedListingImageData: ModifiedListingImageDataDTO
 }
