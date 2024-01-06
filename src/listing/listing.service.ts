@@ -1,13 +1,12 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { Decimal, NotFoundError } from '@prisma/client/runtime';
 import { GenericException } from '../common/http/exceptions/generic.exception';
-import { GenericSuccessResponse } from '../common/helpers/responses';
-import { IGenericSuccessResponse } from '../common/interfaces';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListingCreateDTO, ListingFilterDTO, ListingUpdateDTO } from './dto';
 import { IListingSearchBuilderResult, ListingSearchBuilder } from './listing-search-builder.service';
 import { Listing } from '@prisma/client';
 import { ListingImagesService } from './listing-images.service';
+import { ListingUpdateService } from './listing-update.service';
 
 export interface IGetListingData {
   id: number;
@@ -33,7 +32,8 @@ export class ListingService {
 
   constructor(
     private prisma: PrismaService,
-    private listingImagesService: ListingImagesService
+    private listingImagesService: ListingImagesService,
+    private listingUpdateService: ListingUpdateService
   ) {}
 
   async createListing(dto: ListingCreateDTO, userId: number): Promise<Listing> {
@@ -112,74 +112,39 @@ export class ListingService {
     }
   }
 
-  async updateListing(listing: Listing, userId: number, dto: ListingUpdateDTO): Promise<Listing>
+  async updateListing(listing: Listing, dto: ListingUpdateDTO): Promise<string>
   {
-    if (listing.userId !== userId) {
-      throw new GenericException('Unauthorized listing modification');
-    }
+    await this.listingUpdateService
+      .setValues(dto, listing)
+      .handleUpdates();
 
-    if (dto.deletedListingImages && dto.deletedListingImages.length) {
-      const currentImageIds = listing['listingImages'].map(value => value.id);
-      let invalidImageIdDetected = false;
-
-      for (let i = 0; i < dto.deletedListingImages.length; i++) {
-        if (invalidImageIdDetected) {
-          break;
-        }
-        if (!currentImageIds.includes(dto.deletedListingImages[i])) {
-          invalidImageIdDetected = true;
-        }
-      }
-    }
-
-    const updatedListing = await this.prisma.listing.update({
-      data: {
-        title: dto.listingTextData.title,
-        price: dto.listingTextData.price,
-        description: dto.listingTextData.description
-      },
-      where: {
-        id: listing.id
-      }
-    });
-
-    if (dto.deletedListingImages) {
-      await this.prisma.listingImages.deleteMany({
-        where: {
-          id: {
-            in: dto.deletedListingImages
-          }
-        }
-      });
-    }
-
-    await this.listingImagesService.saveImages(updatedListing)
-      .catch(() => {});
-
-    return updatedListing;
+    return 'Listing updated';
   }
 
-  async deleteListing(listingId: number, userId: number): Promise<IGenericSuccessResponse>
+  async deleteListing(listing: Listing, userId: number): Promise<string>
   {
     try {
-      const listing = await this.prisma.listing.findFirst({
-        where: {
-          id: listingId,
-          userId
-        }
-      })
+      // const listing = await this.prisma.listing.findFirst({
+      //   where: {
+      //     id: listingId,
+      //     userId
+      //   }
+      // })
 
-      if (!listing) {
-        throw new UnauthorizedException()
-      }
+      // if (!listing) {
+      //   throw new UnauthorizedException()
+      // }
+
+
       // TODO: before removing listing, first remove related s3 files and then delete references to those files in db
-      await this.prisma.listing.delete({
-        where: {
-          id: listingId,
-        }
-      })
+      // await this.prisma.listing.delete({
+      //   where: {
+      //     id: listingId,
+      //   }
+      // })
 
-      return GenericSuccessResponse(undefined, 'Listing deleted')
+      // return GenericSuccessResponse(undefined, 'Listing deleted')
+      return 'Listing rmoval in progress'
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error

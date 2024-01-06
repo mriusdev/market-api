@@ -1,4 +1,4 @@
-import { CopyObjectCommand } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { Injectable } from "@nestjs/common";
 import { Listing } from "@prisma/client";
 import { TemporaryImagesService } from "./temporary-images.service";
@@ -20,26 +20,27 @@ export class ListingImagesService
   {
     const finalBucketImageLocations: string[] = [];
 
-    if (await this.temporaryImagesService.imagesExist(listing.userId)) {
-      
-      const temporaryImages = await this.temporaryImagesService.getImages(listing.userId);
-      const copyCommands = [];
-
-      temporaryImages.Contents.forEach(image => {
-        const fileName = image.Key.split('/')[1];
-        const fullImageLocationFinal = `listings/${listing.id}/${fileName}`;
-        const command = new CopyObjectCommand({
-          CopySource: `${this.config.get('AWS_TEMPORARY_USER_LISTING_IMAGES_BUCKET_NAME')}/${image.Key}`,
-          Bucket: this.config.get('AWS_BUCKET_NAME'),
-          Key: `listings/${listing.id}/${fileName}`
-        });
-
-        copyCommands.push(this.awsS3.client().send(command));
-        finalBucketImageLocations.push(fullImageLocationFinal);
-      })
-
-      await Promise.all(copyCommands);
+    if (!await this.temporaryImagesService.imagesExist(listing.userId)) {
+      return;
     }
+      
+    const temporaryImages = await this.temporaryImagesService.getImages(listing.userId);
+    const copyCommands = [];
+
+    temporaryImages.Contents.forEach(image => {
+      const fileName = image.Key.split('/')[1];
+      const fullImageLocationFinal = `listings/${listing.id}/${fileName}`;
+      const command = new CopyObjectCommand({
+        CopySource: `${this.config.get('AWS_TEMPORARY_USER_LISTING_IMAGES_BUCKET_NAME')}/${image.Key}`,
+        Bucket: this.config.get('AWS_BUCKET_NAME'),
+        Key: `listings/${listing.id}/${fileName}`
+      });
+
+      copyCommands.push(this.awsS3.client().send(command));
+      finalBucketImageLocations.push(fullImageLocationFinal);
+    })
+
+    await Promise.all(copyCommands);
 
     if (!finalBucketImageLocations.length) {
       return;
@@ -57,5 +58,19 @@ export class ListingImagesService
       ...listingImagePromises,
       this.temporaryImagesService.removeImagesByUserId(listing.userId)
     ])
+  }
+
+  async deleteImages(imageLocations: string[]): Promise<void>
+  {
+    const deleteCommands = [];
+    for (const imageLocation of imageLocations) {
+      const command = new DeleteObjectCommand({
+        Bucket: this.config.get('AWS_BUCKET_NAME'),
+        Key: imageLocation
+      })
+      deleteCommands.push(command);
+    }
+
+    await Promise.all(deleteCommands);
   }
 }

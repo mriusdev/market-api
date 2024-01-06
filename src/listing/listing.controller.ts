@@ -7,11 +7,11 @@ import { ListingUpdatePayloadPipe } from '../common/pipes';
 import { Role } from '../user/entities/roles.enum';
 import { RolesGuard } from '../user/guards/roles.guard';
 import { Roles } from '../user/roles/roles.decorator';
-import { ListingCreateDTO, ListingFilterDTO, ListingImagesDeleteDTO, ListingImagesUpdateDTO, ListingUpdateDTO } from './dto';
+import { ListingCreateDTO, ListingFilterDTO, ListingUpdateDTO } from './dto';
 import { ListingService } from './listing.service';
 import { SuccessResponse, ISuccessResponse } from '../common/http/success-response';
 import { TemporaryImagesService } from './temporary-images.service';
-import { ListingPipe } from '../common/pipes/listing.pipe';
+import { ListingModifyPipe } from '../common/pipes/listing-modify.pipe';
 import { Listing } from '@prisma/client';
 
 @Controller('listings')
@@ -55,16 +55,19 @@ export class ListingController {
   @Patch(':id')
   async updateListing(
     @Req() req: Request,
-    @Param('id', ListingPipe) listing: Listing,
+    @Param('id', ListingModifyPipe) listing: Listing,
     @Body(new ListingUpdatePayloadPipe()) dto: ListingUpdateDTO
   ): Promise<ISuccessResponse> {
-    return SuccessResponse(await this.listingService.updateListing(listing, req.user['id'], dto));
+    return SuccessResponse(await this.listingService.updateListing(listing, dto));
   }
 
   @UseGuards(JwtAuthAccessGuard)
   @HttpCode(HttpStatus.OK)
   @Delete(':id')
-  deleteListing(@Req() req: Request, @Param('id', ParseIntPipe) id: number): Promise<IGenericSuccessResponse> {
-    return this.listingService.deleteListing(id, req.user['id'])
+  async deleteListing(
+    @Req() req: Request,
+    @Param('id', ListingModifyPipe) listing: Listing
+  ): Promise<ISuccessResponse> {
+    return SuccessResponse(await this.listingService.deleteListing(listing, req.user['id']));
   }
 }

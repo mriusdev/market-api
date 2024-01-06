@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 
 class ListingTextDataDTO 
 {
@@ -17,6 +17,17 @@ class ListingTextDataDTO
   price?: number;
 }
 
+class ModifiedListingImageDataDTO
+{
+  @IsOptional()
+  @IsNumber({}, { each: true })
+  deletedImageIds: number[];
+
+  @IsOptional()
+  @IsBoolean()
+  newImagesAdded: boolean;
+}
+
 export class ListingUpdateDTO {
   @IsOptional()
   @ValidateNested({ each: true })
@@ -24,6 +35,7 @@ export class ListingUpdateDTO {
   listingTextData: ListingTextDataDTO;
 
   @IsOptional()
-  @IsNumber({}, { each: true })
-  deletedListingImages: number[];
+  @ValidateNested({ each: true })
+  @Type(() => ModifiedListingImageDataDTO)
+  modifiedListingImageData: ModifiedListingImageDataDTO
 }
